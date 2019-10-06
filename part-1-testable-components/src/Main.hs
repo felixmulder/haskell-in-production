@@ -1,30 +1,31 @@
-{-# Language DuplicateRecordFields #-}
 module Main
   ( main
-
-  -- * Data types
-  , UserId(..)
-  , UserName(..)
-  , Password(..)
-
-  -- * Interfaces
-  , Persist(..)
-  , Log(..)
   ) where
 
+-- Third party lib imports
 import Prelude
-
 import Control.Lens ((^.))
-import Control.Monad.Reader (ReaderT, runReaderT, lift)
-import Control.Monad.Reader.Class (asks)
+import Control.Monad.Reader (runReaderT)
+import Data.Aeson
 import Data.Functor ((<&>))
 import Data.Has (Has(..))
-import Data.String (IsString)
-import Data.Text (Text, unpack)
+import Data.Text (pack, unpack)
+import Data.Text.Lazy (fromStrict)
+import Data.Text.Lazy.Encoding (encodeUtf8)
 import GHC.Generics (Generic)
-import GHC.Stack (HasCallStack)
-import Web.SimpleHttp
 import Data.Generics.Labels ()
+
+-- Imports from our simplified web framework
+import Web.SimpleHttp (matches, run)
+import Web.SimpleHttp.Types (Request(..), Response(..), MethodAndPath(..))
+import Web.SimpleHttp.Types (RequestBody, Error(..))
+import Web.SimpleHttp.Class (toResponseFrom)
+
+-- Domain types and interfaces:
+import Types (User(..), UserName(..), UserId(..), Password(..), Deletion(..))
+import Types (UserRequest(..))
+import Persist (Persist(..), Persistence(..))
+import Log (Log(..), Logger(..))
 
 main :: IO ()
 main = run 8080 $ \req -> runReaderT (api req) app
@@ -32,8 +33,10 @@ main = run 8080 $ \req -> runReaderT (api req) app
     app :: Application IO
     app = Application
       { persistence = Persistence
-        { _persistUser = \_ _ -> pure (UserId "User1")
-        , _deleteUser = \_ -> pure True
+        { doPersistUser =
+            \_ _ -> pure (UserId "User1")
+        , doDeleteUser =
+            \_ -> pure Deleted
         }
       , logger = Logger (putStrLn . unpack)
       }
@@ -46,7 +49,7 @@ api request =
   case methodAndPath request of
     POST (matches "/user" -> Just []) ->
       createNewUser (request ^. #body) <&> toResponseFrom
-    DELETE (matches "/user/:userId" -> Just [userId]) -> do
+    DELETE (matches "/user/:userId" -> Just [userId]) ->
       deleteUser (UserId userId) <&> toResponseFrom
     _ ->
       pure NoResponse
@@ -66,30 +69,13 @@ createNewUser body =
       pure . Right $ User { userName = user, userId = userId }
 
 bodyToUser :: RequestBody -> Either Error (UserName, Password)
-bodyToUser = undefined
-
---------------------------------------------------------------------------------
--- Data types
---------------------------------------------------------------------------------
-newtype UserName =
-  UserName { unUserName :: Text }
-  deriving newtype (IsString, Loggable)
-
-newtype Password =
-  Password { unPassword :: Text }
-  deriving newtype (IsString, Loggable)
-
-newtype UserId =
-  UserId { unUserId :: Text }
-  deriving newtype (IsString, Loggable)
-
-data User = User
-  { userId :: UserId
-  , userName :: UserName
-  }
-
-instance ToResponse User where
-  toResponseFrom = undefined
+bodyToUser =
+  either
+    (Left . BadRequest . pack)
+    (\UserRequest{..} -> Right (UserName username, Password password))
+    . eitherDecode
+    . encodeUtf8
+    . fromStrict
 
 data Application m = Application
   { persistence :: Persistence m
@@ -105,46 +91,3 @@ instance Has (Persistence m) (Application m) where
   getter = persistence
   modifier f a = a { persistence = f . persistence $ a }
 
---------------------------------------------------------------------------------
--- Persistence interface
---------------------------------------------------------------------------------
-class Monad m => Persist m where
-  persistUser :: UserName -> Password -> m UserId
-  deleteUser :: UserId -> m Bool
-
-data Persistence m = Persistence
-  { _persistUser :: UserName -> Password -> m UserId
-  , _deleteUser :: UserId -> m Bool
-  }
-
-instance
-  ( Has (Persistence m) r
-  , Monad m
-  ) => Persist (ReaderT r m) where
-  persistUser user pass =
-    asks getter >>= \(Persistence persist _) -> lift $ persist user pass
-  deleteUser userId =
-    asks getter >>= \(Persistence _ get) -> lift $ get userId
-
---------------------------------------------------------------------------------
--- Logging interface
---------------------------------------------------------------------------------
-class Loggable a where
-  fromLoggable :: a -> Text
-
-class Monad m => Log m where
-  logLn :: HasCallStack => Loggable a => a -> m ()
-
-data Logger m = Logger
-  { _logLn :: HasCallStack => Text -> m ()
-  }
-
-instance
-  ( Has (Logger m) r
-  , Monad m
-  ) => Log (ReaderT r m) where
-  logLn a =
-    asks getter >>= \(Logger doLog) -> lift . doLog . fromLoggable $ a
-
-instance Loggable Text where
-  fromLoggable = id

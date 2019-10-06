@@ -54,13 +54,19 @@ executable haskell-in-production
     src
   other-modules:
     Web.SimpleHttp
+    Web.SimpleHttp.Class
+    Web.SimpleHttp.Types
+    Persist
+    Log
+    Types
   build-depends:
+    , aeson ^>= 1.4.5.0
     , base ^>= 4.12.0.0
+    , data-has ^>= 0.3.0.0
+    , generic-lens ^>= 1.1.0.0
+    , http-types ^>= 0.12.3
+    , lens ^>= 4.18.1
     , mtl ^>= 2.2.2
     , text ^>= 1.2.3.1
-    , data-has ^>= 0.3.0.0
-    , lens ^>= 4.18.1
-    , generic-lens ^>= 1.1.0.0
-    , warp ^>= 3.3.0
     , wai ^>= 3.2.2.0
-    , http-types ^>= 0.12.3
+    , warp ^>= 3.3.0

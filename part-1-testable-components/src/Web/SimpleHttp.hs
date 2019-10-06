@@ -11,16 +11,6 @@ module Web.SimpleHttp
   ( run
   , matches
 
-  -- * Data types
-  , Request(..)
-  , Response(..)
-  , MethodAndPath(..)
-  , Error(..)
-
-  -- * Type aliases
-  , RequestBody
-  , Path
-
   -- * Type classes
   , ToResponse(..)
   ) where
@@ -32,53 +22,13 @@ import qualified Data.Text as T
 import           Data.Text.Lazy (toStrict, fromStrict)
 import qualified Data.Text.Encoding as T
 import qualified Data.Text.Lazy.Encoding as LT
-import           GHC.Generics (Generic)
 import           Network.HTTP.Types.Status
 import qualified Network.Wai.Handler.Warp as Warp (run)
 import qualified Network.Wai as Wai (Application, Request, Response)
 import           Network.Wai (requestMethod, strictRequestBody, rawPathInfo, responseLBS)
 
-data Request = Request
-  { methodAndPath :: MethodAndPath
-  , body :: RequestBody
-  }
-  deriving stock (Generic)
-
-type Path = Text
-
-type RequestBody = Text
-
-data Error
-  = InternalError Text
-  | BadRequest Text
-
-data MethodAndPath
-  = POST Path
-  | DELETE Path
-
-data Response
-  = NoResponse
-  | Response
-    { statusCode :: Status
-    , body :: Text
-    }
-  deriving stock (Generic)
-
-class ToResponse a where
-  toResponseFrom :: a -> Response
-
-instance ToResponse Bool where
-  toResponseFrom = \case
-    False ->
-      Response status200 mempty
-    True ->
-      Response status404 mempty
-
-instance ToResponse a => ToResponse (Either Error a) where
-  toResponseFrom = \case
-    Left (InternalError e) -> Response status500 e
-    Left (BadRequest e) -> Response status400 e
-    Right a -> toResponseFrom a
+import           Web.SimpleHttp.Class
+import           Web.SimpleHttp.Types
 
 matches :: Text -> Path -> Maybe [Text]
 matches fullPattern fullPath =
@@ -88,9 +38,11 @@ matches fullPattern fullPath =
 
     findAll :: [Text] -> [Text] -> Maybe [Text]
     findAll (pat : patRest) (path : pathRest) =
-      if ":" `T.isPrefixOf` pat || pat == path then do
+      if ":" `T.isPrefixOf` pat then do
         rest <- findAll patRest pathRest
         pure $ path : rest
+      else if pat == path then do
+        findAll patRest pathRest
       else
         Nothing
     findAll [] [] = Just []
@@ -110,10 +62,18 @@ run port handler = Warp.run port (toApplication handler)
       let
         path = T.decodeUtf8 (rawPathInfo r)
         method = case requestMethod r of
-          "POST" -> POST
+          "CONNECT" -> CONNECT
           "DELETE" -> DELETE
+          "GET" -> GET
+          "HEAD" -> HEAD
+          "OPTIONS" -> OPTIONS
+          "PATCH" -> PATCH
+          "POST" -> POST
+          "PUT" -> PUT
+          "TRACE" -> TRACE
           m -> error $ "Unsupported method not added, add it if you want to: " <> show m
-      pure $ Request
+      print path
+      pure Request
         { methodAndPath = method path
         , body = toStrict . LT.decodeUtf8 $ rawBody
         }
