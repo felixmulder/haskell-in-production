@@ -1,0 +1,66 @@
+cabal-version: 3.0
+
+version:
+  0.0.1
+name:
+  haskell-in-production
+author:
+  Felix Mulder
+maintainer:
+  felix.mulder@gmail.com
+homepage:
+  https://felixmulder.com
+bug-reports:
+  https://github.com/felixmulder/haskell-in-production/issues
+license:
+  BSD-3-Clause
+license-file:
+  LICENSE
+extra-source-files:
+  README.md
+
+common options
+  default-language:
+    Haskell2010
+  ghc-options:
+    -- -Wall -Werror -Wredundant-constraints -fhide-source-paths
+    -Wall -Werror -fhide-source-paths
+  default-extensions:
+    DeriveGeneric
+    DerivingStrategies
+    DuplicateRecordFields
+    FlexibleContexts
+    FlexibleInstances
+    GeneralizedNewtypeDeriving
+    LambdaCase
+    MultiParamTypeClasses
+    NoImplicitPrelude
+    OverloadedLabels
+    OverloadedStrings
+    RankNTypes
+    RecordWildCards
+    ScopedTypeVariables
+    TupleSections
+    TypeApplications
+    UndecidableInstances
+    ViewPatterns
+
+executable haskell-in-production
+  import:
+    options
+  main-is:
+    Main.hs
+  hs-source-dirs:
+    src
+  other-modules:
+    Web.SimpleHttp
+  build-depends:
+    , base ^>= 4.12.0.0
+    , mtl ^>= 2.2.2
+    , text ^>= 1.2.3.1
+    , data-has ^>= 0.3.0.0
+    , lens ^>= 4.18.1
+    , generic-lens ^>= 1.1.0.0
+    , warp ^>= 3.3.0
+    , wai ^>= 3.2.2.0
+    , http-types ^>= 0.12.3
