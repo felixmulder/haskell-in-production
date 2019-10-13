@@ -1,3 +1,4 @@
+{-# LANGUAGE MonoLocalBinds #-}
 module Persist
   ( Persist(..)
   , Persistence(..)
@@ -8,6 +9,7 @@ import Prelude
 import Control.Monad.Reader (ReaderT, asks, lift)
 import Data.Has (Has(..))
 
+import Log (Log)
 import Types
 
 class Monad m => Persist m where
@@ -22,6 +24,7 @@ data Persistence m = Persistence
 instance
   ( Has (Persistence m) r
   , Monad m
+  , Log (ReaderT r m)
   ) => Persist (ReaderT r m) where
   persistUser user pass =
     asks getter >>= \(Persistence persist _) -> lift $ persist user pass
